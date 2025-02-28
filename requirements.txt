@@ -1,1 +1,8 @@
 PyPDF2
+python-docx
+pdf2docx
+langchain
+langchain-community
+langchain-huggingface
+langchain-groq
+langchain-core
