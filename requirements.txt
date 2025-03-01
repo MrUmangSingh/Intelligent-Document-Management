@@ -6,3 +6,13 @@ langchain-community
 langchain-huggingface
 langchain-groq
 langchain-core
+fastapi
+uvicorn
+requests
+PyMuPDF
+pymongo
+chromadb
+dotenv
+transformers
+torch
+sentence-transformers

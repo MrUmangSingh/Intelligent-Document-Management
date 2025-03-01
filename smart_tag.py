@@ -1,17 +1,10 @@
-from typing import TypedDict, Annotated, Sequence
-from langchain_huggingface import HuggingFaceEmbeddings
 import os
-import operator
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
-from langchain_core.messages import BaseMessage
 from langchain.prompts import PromptTemplate
 from pydantic import BaseModel, Field
 from langchain.output_parsers import PydanticOutputParser
-from langchain_community.document_loaders import TextLoader, DirectoryLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import Chroma
-from fastapi import FastAPI, HTTPException
+from fastapi import HTTPException
 import requests
 from io import BytesIO
 from PyPDF2 import PdfReader
@@ -53,8 +46,6 @@ def read_file_from_url(url):
                 pdf_reader = PdfReader(pdf_file)
 
                 num_pages = len(pdf_reader.pages)
-                print(f"File type: PDF")
-                print(f"Number of pages: {num_pages}")
 
                 full_text = ""
                 for page_num in range(num_pages):
@@ -62,16 +53,11 @@ def read_file_from_url(url):
                     text = page.extract_text()
                     full_text += f"\n--- Page {page_num + 1} ---\n{text}"
 
-                print("Content:")
-                print(full_text)
                 return full_text
 
             elif is_txt:
                 # Handle TXT files
                 text = response.text
-                print("File type: TXT")
-                print("Content:")
-                print(text)
                 return text
 
             else:
@@ -161,27 +147,9 @@ if __name__ == "__main__":
     # URL provided
     url = "https://docsysmanage.s3.ap-south-1.amazonaws.com/2021_2_English.pdf"
 
-    # Call the function
-    # text = read_file_from_url(url)
-    # print(text)
     text = read_text_file(
         r"D:\Python\Intelligent-Document-Management\output.txt")
     category = classify_document(text)
     print(category)
     details = extract_key_details(text)
     print(details)
-
-    # directory = 'D:\Python\Intelligent-Document-Management'
-    # for filename in os.listdir(directory):
-    #     if filename.endswith('.txt'):
-    #         file_path = os.path.join(directory, filename)
-    #         content = read_text_file(file_path)
-    #         function_1({"messages": []}, content)
-
-
-# directory = 'D:\Python\Intelligent-Document-Management'
-# for filename in os.listdir(directory):
-#     if filename.endswith('.txt'):
-#         file_path = os.path.join(directory, filename)
-#         content = read_text_file(file_path)
-#         function_1({"messages": []}, content)
