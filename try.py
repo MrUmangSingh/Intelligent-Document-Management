@@ -1,53 +1,69 @@
-import requests
-from io import BytesIO
-from PyPDF2 import PdfReader
+import os
+from langchain_groq import ChatGroq
+from dotenv import load_dotenv
+from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.vectorstores import Chroma
+from langchain.prompts import ChatPromptTemplate
+from langchain.docstore.document import Document
+from langchain_core.output_parsers import StrOutputParser
+
+load_dotenv()
+
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+os.environ["GROQ_API_KEY"] = GROQ_API_KEY
+
+llm = ChatGroq(model_name="llama-3.3-70b-versatile")
+embedder = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
 
-def read_pdf_from_url(url):
-    try:
-        # Send GET request to the URL
-        response = requests.get(url)
+def deepsearch(query, doc):
+    # Wrap string in Document
+    docs = [Document(page_content=doc)]
 
-        # Check if request was successful
-        if response.status_code == 200:
-            # Create a BytesIO object from the response content
-            pdf_file = BytesIO(response.content)
+    # Text splitting
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=50,
+        chunk_overlap=10,
+        length_function=len
+    )
+    new_docs = text_splitter.split_documents(docs)
 
-            # Create PDF reader object
-            pdf_reader = PdfReader(pdf_file)
+    # Vector store and retriever
+    db = Chroma.from_documents(new_docs, embedder)
+    retriever = db.as_retriever(search_kwargs={"k": 2})
 
-            # Get number of pages
-            num_pages = len(pdf_reader.pages)
-            print(f"Number of pages: {num_pages}")
+    # Fetch context once
+    context = retriever.invoke(query)  # Returns a list of Document objects
 
-            # Extract text from all pages
-            full_text = ""
-            for page_num in range(num_pages):
-                page = pdf_reader.pages[page_num]
-                text = page.extract_text()
-                full_text += f"\n--- Page {page_num + 1} ---\n{text}"
+    # Convert context to a string for the prompt
+    context_str = " ".join([doc.page_content for doc in context])
 
-            # Print or return the text
-            print("PDF Content:")
-            print(full_text)
+    # Strict prompt to use only the provided context
+    template = """Answer the question based solely on the following context. Do not use any external knowledge or assumptions beyond what is provided:
 
-            return full_text
+    Context: {context}
 
-        else:
-            print(f"Failed to access PDF. Status code: {response.status_code}")
-            return None
+    Question: {question}
 
-    except requests.exceptions.RequestException as e:
-        print(f"Request error occurred: {e}")
-        return None
-    except Exception as e:
-        print(f"PDF processing error occurred: {e}")
-        return None
+    If the context does not contain enough information to answer the question, say 'The provided context does not contain sufficient information to answer the question.'
+    """
+    prompt = ChatPromptTemplate.from_template(template)
+
+    # Format prompt
+    formatted_prompt = prompt.format(context=context_str, question=query)
+
+    # Get answer from LLM
+    result = llm.invoke(formatted_prompt)
+
+    # Parse output
+    parser = StrOutputParser()
+    final_result = parser.invoke(result)
+
+    return final_result
 
 
-# URL provided
-url = "https://docsysmanage.s3.ap-south-1.amazonaws.com/2021_2_English.pdf"
-
-# Call the function
-text = read_pdf_from_url(url)
-print(text)
+if __name__ == "__main__":
+    query = "Who founded Monu Enterprises and when?"
+    doc = """Umang Singh founded a company named Monu Enterprises in 2010. The company is based in Paris, France."""
+    print(deepsearch(query, doc))

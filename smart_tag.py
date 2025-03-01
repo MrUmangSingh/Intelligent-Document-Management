@@ -4,8 +4,6 @@ import os
 import operator
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
-import chromadb
-import json
 from langchain_core.messages import BaseMessage
 from langchain.prompts import PromptTemplate
 from pydantic import BaseModel, Field

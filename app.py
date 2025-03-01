@@ -2,13 +2,24 @@ from fastapi import FastAPI
 from pydantic import BaseModel as PydanticBaseModel, Field
 import uvicorn
 from smart_tag import classify_document, read_file_from_url
-
+from deepsearch import deepsearch
+from pymongo import MongoClient
+from dotenv import load_dotenv
+import os
+load_dotenv()
 
 app = FastAPI(
     title="Document Classification API",
     description="API to classify documents into predefined categories",
     version="1.0.0"
 )
+
+MONGODB_URI = os.getenv("MONGODB_URI")
+os.environ["GROQ_API_KEY"] = MONGODB_URI
+
+client = MongoClient(MONGODB_URI)
+db = client["test"]
+collection = db["files"]
 
 
 class DocumentRequest(PydanticBaseModel):
@@ -28,38 +39,24 @@ async def classify_document_endpoint(request: DocumentRequest):
     category = classify_document(doc)
     return {"category": category}
 
-# Optional: Endpoint to classify a file from a directory
 
-
-# @app.get("/classify_file/{filename}", response_model=dict)
-# async def classify_file_endpoint(filename: str):
-#     """
-#     Classify a document from a file in the specified directory.
-
-#     Args:
-#         filename: Name of the txt file in the directory
-
-#     Returns:
-#         dict: Contains the classified category
-#     """
-#     directory = r"D:\Python\Intelligent-Document-Management"
-#     file_path = os.path.join(directory, filename)
-
-#     if not filename.endswith('.txt'):
-#         raise HTTPException(status_code=400, detail="File must be a .txt file")
-
-#     if not os.path.exists(file_path):
-#         raise HTTPException(status_code=404, detail="File not found")
-
-#     try:
-#         with open(file_path, 'r', encoding='utf-8') as file:
-#             content = file.read()
-#         category = classify_document(content)
-#         return {"category": category}
-#     except Exception as e:
-#         raise HTTPException(
-#             status_code=500, detail=f"Error reading file: {str(e)}")
+@app.post("/deepsearch", response_model=dict)
+async def deepsearch_endpoint(request: DocumentRequest):
+    """
+    Perform deep search on a document.
+    Args:
+        request: DocumentRequest containing the document text
+    Returns:
+        dict: Contains the search results
+    """
+    doc = read_file_from_url(request.url)
+    results = deepsearch("What is the main idea of this document?", doc)
+    return {"results": results}
 
 if __name__ == "__main__":
     # Run the FastAPI app
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # uvicorn.run(app, host="0.0.0.0", port=8000)
+    documents = collection.find({}, {"fileUrl": 1, "_id": 0})
+    for doc in documents:
+        print(doc["fileUrl"])
+        # doc = read_file_from_url(doc["fileUrl"])
