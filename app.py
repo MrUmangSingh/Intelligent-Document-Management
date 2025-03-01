@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from pydantic import BaseModel as PydanticBaseModel, Field
 import uvicorn
-from smart_tag import classify_document
+from smart_tag import classify_document, read_file_from_url
 
 
 app = FastAPI(
@@ -12,7 +12,7 @@ app = FastAPI(
 
 
 class DocumentRequest(PydanticBaseModel):
-    document: str = Field(description="The document content to classify")
+    url: str = Field(description="The document content to classify")
 
 
 @app.post("/classify", response_model=dict)
@@ -24,7 +24,8 @@ async def classify_document_endpoint(request: DocumentRequest):
     Returns:
         dict: Contains the classified category
     """
-    category = classify_document(request.document)
+    doc = read_file_from_url(request.url)
+    category = classify_document(doc)
     return {"category": category}
 
 # Optional: Endpoint to classify a file from a directory

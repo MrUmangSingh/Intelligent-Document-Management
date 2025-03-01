@@ -14,6 +14,9 @@ from langchain_community.document_loaders import TextLoader, DirectoryLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 from fastapi import FastAPI, HTTPException
+import requests
+from io import BytesIO
+from PyPDF2 import PdfReader
 
 
 from dotenv import load_dotenv
@@ -23,7 +26,7 @@ load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 os.environ["GROQ_API_KEY"] = GROQ_API_KEY
 
-llm = ChatGroq(model_name="mixtral-8x7b-32768")
+llm = ChatGroq(model_name="llama-3.3-70b-versatile")
 # embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
 
@@ -32,6 +35,62 @@ class CategorySelectionParser(BaseModel):
 
 
 parser = PydanticOutputParser(pydantic_object=CategorySelectionParser)
+
+
+def read_file_from_url(url):
+    try:
+        # Send GET request to the URL
+        response = requests.get(url)
+
+        # Check if request was successful
+        if response.status_code == 200:
+            # Determine file type from URL or content-type
+            content_type = response.headers.get('content-type', '').lower()
+            is_pdf = url.lower().endswith('.pdf') or 'application/pdf' in content_type
+            is_txt = url.lower().endswith('.txt') or 'text/plain' in content_type
+
+            if is_pdf:
+                # Handle PDF files
+                pdf_file = BytesIO(response.content)
+                pdf_reader = PdfReader(pdf_file)
+
+                num_pages = len(pdf_reader.pages)
+                print(f"File type: PDF")
+                print(f"Number of pages: {num_pages}")
+
+                full_text = ""
+                for page_num in range(num_pages):
+                    page = pdf_reader.pages[page_num]
+                    text = page.extract_text()
+                    full_text += f"\n--- Page {page_num + 1} ---\n{text}"
+
+                print("Content:")
+                print(full_text)
+                return full_text
+
+            elif is_txt:
+                # Handle TXT files
+                text = response.text
+                print("File type: TXT")
+                print("Content:")
+                print(text)
+                return text
+
+            else:
+                print("Unsupported file type. Only PDF and TXT are supported.")
+                return None
+
+        else:
+            print(
+                f"Failed to access file. Status code: {response.status_code}")
+            return None
+
+    except requests.exceptions.RequestException as e:
+        print(f"Request error occurred: {e}")
+        return None
+    except Exception as e:
+        print(f"Processing error occurred: {e}")
+        return None
 
 
 def read_text_file(file_path):
@@ -77,6 +136,49 @@ def classify_document(document: str) -> str:
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Error processing document: {str(e)}")
+
+
+def extract_key_details(document: str) -> dict:
+    template = """
+    Your task is to extract key details from the given document. Provide dates (YYYY-MM-DD format), monetary amounts (with currency), names of people or entities and also give summary about the document.. Return as a JSON object.
+    Document: {document}
+    """
+
+    prompt = PromptTemplate(template=template,
+                            input_variables=["document"],
+                            )
+    chain = prompt | llm
+
+    try:
+        response = chain.invoke(
+            {"document": document}
+        )
+        return response.content
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error extracting details: {str(e)}")
+
+
+if __name__ == "__main__":
+    # URL provided
+    url = "https://docsysmanage.s3.ap-south-1.amazonaws.com/2021_2_English.pdf"
+
+    # Call the function
+    # text = read_file_from_url(url)
+    # print(text)
+    text = read_text_file(
+        r"D:\Python\Intelligent-Document-Management\output.txt")
+    category = classify_document(text)
+    print(category)
+    details = extract_key_details(text)
+    print(details)
+
+    # directory = 'D:\Python\Intelligent-Document-Management'
+    # for filename in os.listdir(directory):
+    #     if filename.endswith('.txt'):
+    #         file_path = os.path.join(directory, filename)
+    #         content = read_text_file(file_path)
+    #         function_1({"messages": []}, content)
 
 
 # directory = 'D:\Python\Intelligent-Document-Management'
