@@ -6,6 +6,7 @@ from pymongo import MongoClient
 from dotenv import load_dotenv
 import os
 import uvicorn
+from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 
@@ -13,6 +14,14 @@ app = FastAPI(
     title="Document Classification API",
     description="API to classify documents into predefined categories",
     version="1.0.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods
+    allow_headers=["*"],  # Allow all headers
 )
 
 MONGODB_URI = os.getenv("MONGODB_URI")
